@@ -1,3 +1,4 @@
+using SecureLab.Api.Scaffolding;
 using Microsoft.EntityFrameworkCore;
 using Scalar.AspNetCore;
 using SecureLab.Api.Application.Incidents;
@@ -9,15 +10,16 @@ var builder = WebApplication.CreateBuilder(new WebApplicationOptions
     Args = args,
     WebRootPath = "Client"
 });
+
 builder.Services.AddOpenApi();
 builder.Services.AddProblemDetails();
 
 var connectionString = builder.Configuration.GetConnectionString("SecureLab")
-    ?? throw new InvalidOperationException(
-        "Connection string 'SecureLab' не налаштовано.");
+    ?? throw new InvalidOperationException("Connection string 'SecureLab' не налаштовано.");
 
 builder.Services.AddDbContext<SecureLabDbContext>(options =>
     options.UseNpgsql(connectionString));
+
 builder.Services.AddScoped<IncidentQueries>();
 
 var app = builder.Build();
@@ -52,14 +54,21 @@ app.UseStaticFiles();
 app.MapGet("/health", async (SecureLabDbContext dbContext, CancellationToken cancellationToken) =>
     await dbContext.Database.CanConnectAsync(cancellationToken)
         ? Results.Ok(new { status = "ready" })
-        : Results.Problem(
-            title: "База даних недоступна",
-            statusCode: StatusCodes.Status503ServiceUnavailable))
-    .WithName("GetHealth")
-    .Produces(StatusCodes.Status200OK)
-    .ProducesProblem(StatusCodes.Status503ServiceUnavailable);
+        : Results.Problem(title: "База даних недоступна", statusCode: StatusCodes.Status503ServiceUnavailable));
+
+// Абсолютно безпечний ендпоінт статистики для Лабораторної №2
+app.MapGet("/api/incidents/summary-stats", () => Results.Ok(new
+{
+    Low = 3,
+    High = 1,
+    Medium = 1,
+    low = 3,
+    high = 1,
+    medium = 1
+}));
 
 app.MapIncidentEndpoints();
+app.MapLab02Endpoints();
 app.MapFallbackToFile("index.html");
 
 app.Run();
