@@ -3,6 +3,7 @@ using Scalar.AspNetCore;
 using SecureLab.Api.Application.Incidents;
 using SecureLab.Api.Data;
 using SecureLab.Api.Data.Entities;
+using SecureLab.Api.Presentation.Contracts;
 
 var builder = WebApplication.CreateBuilder(new WebApplicationOptions
 {
@@ -58,9 +59,8 @@ app.MapGet("/health", async (SecureLabDbContext dbContext, CancellationToken can
     .Produces(StatusCodes.Status200OK)
     .ProducesProblem(StatusCodes.Status503ServiceUnavailable);
 
-// --- ВСІ ЕНДПОЇНТИ НА ПРЯМУ ЧЕРЕЗ DbContext ---
+// --- ІНШІ ЕНДПОЇНТИ ---
 
-// 1. Отримання списку інцидентів
 app.MapGet("/api/incidents", async (IncidentStatus? status, SecureLabDbContext db, CancellationToken ct) =>
 {
     var query = db.Incidents.AsNoTracking();
@@ -78,11 +78,18 @@ app.MapGet("/api/incidents", async (IncidentStatus? status, SecureLabDbContext d
     }));
 });
 
-// 1.1. Отримання деталей інциденту за ID напряму через базу
 app.MapGet("/api/incidents/{id:guid}", async (Guid id, SecureLabDbContext db, CancellationToken ct) =>
 {
     var incident = await db.Incidents.AsNoTracking().FirstOrDefaultAsync(i => i.Id == id, ct);
-    if (incident == null) return Results.NotFound();
+    if (incident == null)
+    {
+        return Results.Problem(
+            statusCode: StatusCodes.Status404NotFound,
+            title: "Інцидент не знайдено",
+            detail: $"Інцидент '{id}' не існує.",
+            type: "https://tools.ietf.org/html/rfc9110#section-15.5.5"
+        );
+    }
 
     return Results.Ok(new
     {
@@ -98,7 +105,6 @@ app.MapGet("/api/incidents/{id:guid}", async (Guid id, SecureLabDbContext db, Ca
     });
 });
 
-// 2. Підсумкова статистика
 var summaryHandler = async (SecureLabDbContext db, CancellationToken ct) =>
 {
     try
@@ -121,31 +127,23 @@ app.MapGet("/api/incidents/summary-stats", summaryHandler);
 app.MapGet("/api/incidents/severity-summary", summaryHandler);
 app.MapGet("/api/incidents/my-summary-stats", summaryHandler);
 
-// Пошук інцидентів
-app.MapGet("/api/incidents/search", async (string? q, string? sortBy, SecureLabDbContext db, CancellationToken ct) =>
+// ==========================================
+// БЕЗПЕЧНИЙ МЕТОД ПОШУКУ (Етап 4)
+// ==========================================
+app.MapGet("/api/incidents/search", async (string? q, string? sortBy, IncidentQueries queries, CancellationToken ct) =>
 {
-    var order = sortBy switch
+    if (sortBy is not null && sortBy != "" && sortBy != "createdAtUtc" && sortBy != "severity" && sortBy != "status")
     {
-        null or "" or "createdAtUtc" => "created_at_utc DESC",
-        "severity" => "severity",
-        "status" => "status",
-        _ => sortBy
-    };
-    var sql = "SELECT * FROM incidents WHERE title ILIKE '%" + (q ?? "") + "%' OR description ILIKE '%" + (q ?? "") + "%' ORDER BY " + order + " LIMIT 50";
-    var rows = await db.Incidents.FromSqlRaw(sql).AsNoTracking().ToListAsync(ct);
+        return Results.ValidationProblem(new Dictionary<string, string[]>
+        {
+            ["sortBy"] = ["Допустимі значення: createdAtUtc, severity, status."]
+        });
+    }
 
-    return Results.Ok(rows.Select(row => new
-    {
-        row.Id,
-        row.Title,
-        row.Description,
-        Severity = row.Severity.ToString(),
-        Status = row.Status.ToString(),
-        row.CreatedAtUtc
-    }));
+    var results = await queries.SearchAsync(q, sortBy, ct);
+    return Results.Ok(results);
 });
 
-// 3. Реалізація POST /api/incidents з повною валідацією
 app.MapPost("/api/incidents", async (CreateIncidentRequest request, SecureLabDbContext db, CancellationToken ct) =>
 {
     var now = DateTimeOffset.UtcNow;
@@ -211,6 +209,7 @@ app.MapPost("/api/incidents", async (CreateIncidentRequest request, SecureLabDbC
 });
 
 app.MapFallbackToFile("index.html");
+
 app.Run();
 
 public sealed record CreateIncidentRequest(

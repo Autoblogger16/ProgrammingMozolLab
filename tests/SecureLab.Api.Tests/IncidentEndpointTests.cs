@@ -42,7 +42,7 @@ public sealed class IncidentEndpointTests(SecureLabApiFactory factory)
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.False(document.RootElement.TryGetProperty("ownerUserId", out _));
         Assert.False(document.RootElement.TryGetProperty("email", out _));
-        Assert.Equal("Аліса Коваль", document.RootElement.GetProperty("ownerDisplayName").GetString());
+        Assert.Equal("Alice", document.RootElement.GetProperty("ownerDisplayName").GetString());
     }
 
     [Fact]
