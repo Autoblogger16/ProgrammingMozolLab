@@ -35,23 +35,53 @@ public static class Lab03Identity
 
     public static void MapLab03Identity(this WebApplication app)
     {
+        // ===== ЛР 3, етап 2: POST /api/auth/register — ПОЧАТОК =====
         app.MapPost("/api/auth/register", async (RegistrationInput input, UserManager<ApplicationUser> users) =>
         {
-            // ЛР 03: завершіть DTO validation та перевірки довірчої межі.
+            // 1. Обов'язкові поля. Пароль перевіряємо як є, без Trim.
             if (string.IsNullOrWhiteSpace(input.UserName) || string.IsNullOrWhiteSpace(input.Email)
                 || string.IsNullOrWhiteSpace(input.DisplayName) || string.IsNullOrEmpty(input.Password))
-                return Results.BadRequest();
+                return RegistrationFailed();
+
+            // 2. Нормалізуємо лише профільні поля; пароль не змінюємо і ніде не логуємо.
+            var userName = input.UserName.Trim();
+            var email = input.Email.Trim();
+            var displayName = input.DisplayName.Trim();
+
+            // 3. Довжина й формат за контрактом (межі з моделі: DisplayName 120, Email 256).
+            if (userName.Length is < 3 or > 64
+                || !userName.All(c => char.IsAsciiLetterOrDigit(c) || "-._@+".Contains(c))
+                || email.Length > 256 || !email.Contains('@')
+                || displayName.Length > 120
+                || input.Password.Length > 128)
+                return RegistrationFailed();
+
+            // 4. Хеш пароля обчислює сам Identity всередині CreateAsync.
             var user = new ApplicationUser
             {
-                Id = Guid.NewGuid(), UserName = input.UserName.Trim(), Email = input.Email.Trim(),
-                DisplayName = input.DisplayName.Trim()
+                Id = Guid.NewGuid(),
+                UserName = userName,
+                Email = email,
+                DisplayName = displayName
             };
             var result = await users.CreateAsync(user, input.Password);
-            if (!result.Succeeded) return Results.BadRequest(new { message = "Registration failed" });
+            if (!result.Succeeded)
+            {
+                // 5. Дублікат імені або email -> 409, усе інше -> однаковий 400.
+                var duplicate = result.Errors.Any(e => e.Code is "DuplicateUserName" or "DuplicateEmail");
+                return duplicate
+                    ? Results.Conflict(new { message = "Account already exists" })
+                    : RegistrationFailed();
+            }
+
             var role = await users.AddToRoleAsync(user, DbSeeder.ReporterRole);
             if (!role.Succeeded) throw new InvalidOperationException("Default role assignment failed.");
-            return Results.Created("/api/me", new { user.Id, user.UserName, user.DisplayName });
+
+            // 6. Лише затверджені поля відповіді.
+            return Results.Created("/api/me", new RegistrationResponse(user.Id, userName, displayName));
         });
+        // ===== ЛР 3, етап 2: POST /api/auth/register — КІНЕЦЬ =====
+
         app.MapPost("/api/auth/login", async (LoginInput input, SignInManager<ApplicationUser> signIn) =>
         {
             if (string.IsNullOrWhiteSpace(input.UserName) || string.IsNullOrEmpty(input.Password))
@@ -71,7 +101,17 @@ public static class Lab03Identity
         // Приклад лише mechanics: не повертає identity і не реалізує оцінювану operation.
         app.MapGet("/api/auth/session-check", () => Results.NoContent()).RequireAuthorization();
     }
-}
 
+    // ===== ЛР 3, етап 2: однакова безпечна відмова register — ПОЧАТОК =====
+    // Не розкриває, яке саме поле або правило не пройшло.
+    private static IResult RegistrationFailed() =>
+        Results.BadRequest(new { message = "Registration failed" });
+    // ===== ЛР 3, етап 2: однакова безпечна відмова register — КІНЕЦЬ =====
+}
 public sealed record RegistrationInput(string? UserName, string? Email, string? DisplayName, string? Password);
 public sealed record LoginInput(string? UserName, string? Password);
+
+// ===== ЛР 3, етап 2: response DTO для register — ПОЧАТОК =====
+// Лише безпечні поля: без пароля, хешу, ролі чи службових даних.
+public sealed record RegistrationResponse(Guid Id, string UserName, string DisplayName);
+// ===== ЛР 3, етап 2: response DTO для register — КІНЕЦЬ =====
