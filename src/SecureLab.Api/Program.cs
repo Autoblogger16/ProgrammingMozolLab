@@ -1,3 +1,4 @@
+using System.Threading.RateLimiting;
 using SecureLab.Api.Scaffolding;
 using Microsoft.EntityFrameworkCore;
 using Scalar.AspNetCore;
@@ -20,6 +21,32 @@ var connectionString = builder.Configuration.GetConnectionString("SecureLab")
 builder.Services.AddDbContext<SecureLabDbContext>(options =>
     options.UseNpgsql(connectionString));
 builder.Services.AddScoped<IncidentQueries>();
+
+// Обмеження спроб входу: не більше 10 запитів за 30 секунд з однієї IP-адреси, без черги.
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+    // Подія для відхиленої спроби: лише тип, результат і traceId (без логіна, пароля, cookie).
+    options.OnRejected = (context, _) =>
+    {
+        var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<Program>>();
+        logger.LogWarning("Auth event {EventType}: result {Result}, trace {TraceId}",
+            "login", "rate_limited", context.HttpContext.TraceIdentifier);
+        return ValueTask.CompletedTask;
+    };
+
+    // Ключ групи — IP-адреса клієнта (у тестовому сервері IP немає, тому "unknown").
+    options.AddPolicy("login", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 10,
+                Window = TimeSpan.FromSeconds(30),
+                QueueLimit = 0
+            }));
+});
 
 builder.AddLab03Identity();
 
@@ -51,6 +78,8 @@ if (app.Environment.IsDevelopment())
 
 app.UseAuthentication();
 app.UseAuthorization();
+
+app.UseRateLimiter();
 
 app.UseDefaultFiles();
 app.UseStaticFiles();

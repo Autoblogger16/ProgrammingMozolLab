@@ -10,11 +10,21 @@ namespace SecureLab.Api.Tests;
 public sealed class IncidentCreationTests(SecureLabApiFactory factory)
     : IClassFixture<SecureLabApiFactory>
 {
-    private readonly HttpClient _client = factory.CreateClient();
+    // ===== тесла модел 3: ПОЧАТОК зміни 1 =====
+    // Пароль навчальних акаунтів береться лише зі змінної середовища, не з коду.
+    private static string Password =>
+        Environment.GetEnvironmentVariable("SeedUsers__Password")
+        ?? throw new InvalidOperationException("Set local SeedUsers__Password outside Git.");
+    // ===== тесла модел 3: КІНЕЦЬ зміни 1 =====
 
     [Fact]
     public async Task T02_ValidationFails_Returns400()
     {
+        // ===== тесла модел 3: ПОЧАТОК зміни 2 =====
+        // POST тепер вимагає входу: спершу логін як alice, далі той самий cookie-клієнт.
+        using var client = await factory.LoginAsync("alice", Password);
+        // ===== тесла модел 3: КІНЕЦЬ зміни 2 =====
+
         var request = new
         {
             title = "Check T-02",
@@ -23,7 +33,7 @@ public sealed class IncidentCreationTests(SecureLabApiFactory factory)
             occurredAtUtc = DateTimeOffset.UtcNow.AddDays(5)
         };
 
-        using var response = await _client.PostAsJsonAsync("/api/incidents", request);
+        using var response = await client.PostAsJsonAsync("/api/incidents", request);
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
@@ -39,6 +49,11 @@ public sealed class IncidentCreationTests(SecureLabApiFactory factory)
     [Fact]
     public async Task T03_DuplicateTitle_Returns409()
     {
+        // ===== тесла модел 3: ПОЧАТОК зміни 3 =====
+        // Так само входимо як alice перед створенням інцидентів.
+        using var client = await factory.LoginAsync("alice", Password);
+        // ===== тесла модел 3: КІНЕЦЬ зміни 3 =====
+
         var title = $"Regression-{Guid.NewGuid():N}";
         var request = new
         {
@@ -50,10 +65,10 @@ public sealed class IncidentCreationTests(SecureLabApiFactory factory)
 
         try
         {
-            using var first = await _client.PostAsJsonAsync("/api/incidents", request);
+            using var first = await client.PostAsJsonAsync("/api/incidents", request);
             Assert.Equal(HttpStatusCode.Created, first.StatusCode);
 
-            using var second = await _client.PostAsJsonAsync("/api/incidents", request);
+            using var second = await client.PostAsJsonAsync("/api/incidents", request);
             Assert.Equal(HttpStatusCode.Conflict, second.StatusCode);
             Assert.Equal("application/problem+json", second.Content.Headers.ContentType?.MediaType);
         }

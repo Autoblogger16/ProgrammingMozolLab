@@ -83,20 +83,39 @@ public static class Lab03Identity
         });
         // ===== ЛР 3, етап 2: POST /api/auth/register — КІНЕЦЬ =====
 
-        app.MapPost("/api/auth/login", async (LoginInput input, SignInManager<ApplicationUser> signIn) =>
+        // Login з подіями автентифікації і обмеженням спроб "login".
+        app.MapPost("/api/auth/login", async (LoginInput input, SignInManager<ApplicationUser> signIn,
+            HttpContext httpContext, ILogger<Program> logger) =>
         {
             if (string.IsNullOrWhiteSpace(input.UserName) || string.IsNullOrEmpty(input.Password))
+            {
+                logger.LogInformation("Auth event {EventType}: result {Result}, trace {TraceId}",
+                    "login", "failure", httpContext.TraceIdentifier);
                 return Results.Unauthorized();
+            }
             var result = await signIn.PasswordSignInAsync(input.UserName, input.Password, false, false);
+
+            // Подія: лише тип, результат і traceId — без логіна, пароля, cookie чи тіла запиту.
+            logger.LogInformation("Auth event {EventType}: result {Result}, trace {TraceId}",
+                "login", result.Succeeded ? "success" : "failure", httpContext.TraceIdentifier);
+
+            // Відповідь для невідомого користувача і хибного пароля однакова: 401.
             return result.Succeeded ? Results.NoContent() : Results.Unauthorized();
-        });
+        }).RequireRateLimiting("login");
 
 
-        app.MapPost("/api/auth/logout", async (SignInManager<ApplicationUser> signIn) =>
+        // ===== тесла модел 3: ПОЧАТОК зміни 5 =====
+        // Logout з подією: id береться з principal до виходу; інших даних у подію не потрапляє.
+        app.MapPost("/api/auth/logout", async (SignInManager<ApplicationUser> signIn,
+            HttpContext httpContext, ILogger<Program> logger) =>
         {
+            var userId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "anonymous";
             await signIn.SignOutAsync();
+            logger.LogInformation("Auth event {EventType}: user {UserId}, result {Result}, trace {TraceId}",
+                "logout", userId, "success", httpContext.TraceIdentifier);
             return Results.NoContent();
         });
+        // ===== тесла модел 3: КІНЕЦЬ зміни 5 =====
 
         app.MapGet("/api/me", (HttpContext context) =>
         {
