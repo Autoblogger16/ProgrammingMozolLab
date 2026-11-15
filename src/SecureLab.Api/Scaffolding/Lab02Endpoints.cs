@@ -1,3 +1,4 @@
+using System.Security.Claims; // для читання id користувача з cookie
 using Microsoft.EntityFrameworkCore;
 using SecureLab.Api.Data;
 using SecureLab.Api.Data.Entities;
@@ -71,8 +72,14 @@ public static class Lab02Endpoints
         // ==========================================
         // СТВОРЕННЯ ІНЦИДЕНТУ: POST /api/incidents
         // ==========================================
-        app.MapPost("/api/incidents", async (CreateIncidentRequest request, SecureLabDbContext db, CancellationToken ct) =>
+
+        // Доданий параметр HttpContext: власник береться лише з cookie (HttpContext.User), а не з body чи заголовка.
+        app.MapPost("/api/incidents", async (CreateIncidentRequest request, HttpContext httpContext, SecureLabDbContext db, CancellationToken ct) =>
         {
+            if (!Guid.TryParse(httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier), out var ownerUserId))
+                return Results.Unauthorized();
+
+
             var now = DateTimeOffset.UtcNow; // фіксуємо один раз
             var errors = new Dictionary<string, string[]>();
 
@@ -138,7 +145,9 @@ public static class Lab02Endpoints
             var incident = new Incident
             {
                 Id = Guid.NewGuid(),
-                OwnerUserId = DbSeeder.AliceId,
+
+                OwnerUserId = ownerUserId, // власник з cookie замість фіксованого DbSeeder.AliceId
+
                 Title = title,
                 Description = description,
                 Severity = severity,
@@ -162,7 +171,9 @@ public static class Lab02Endpoints
                 incident.UpdatedAtUtc);
 
             return Results.Created($"/api/incidents/{incident.Id}", response);
-        });
+         
+        }).RequireAuthorization(); // без входу запит отримує 401
+
     }
 
     // Екранування для literal substring: спершу \, потім % і _.
