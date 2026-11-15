@@ -1,3 +1,4 @@
+using System.Security.Claims; 
 using Microsoft.AspNetCore.Identity;
 using SecureLab.Api.Data;
 using SecureLab.Api.Data.Entities;
@@ -89,15 +90,26 @@ public static class Lab03Identity
             var result = await signIn.PasswordSignInAsync(input.UserName, input.Password, false, false);
             return result.Succeeded ? Results.NoContent() : Results.Unauthorized();
         });
-        app.MapPost("/api/auth/logout", () => Results.StatusCode(StatusCodes.Status501NotImplemented));
-        // Навмисно хибна навчальна довіра: ЛР 03 замінює заявлений id на verified principal.
-        app.MapGet("/api/me", async (HttpContext context, SecureLabDbContext db) =>
+
+
+        app.MapPost("/api/auth/logout", async (SignInManager<ApplicationUser> signIn) =>
         {
-            if (!Guid.TryParse(context.Request.Headers["X-Demo-UserId"], out var claimedId))
-                return Results.StatusCode(StatusCodes.Status501NotImplemented);
-            var user = await db.Users.FindAsync(claimedId);
-            return user is null ? Results.NotFound() : Results.Ok(new { user.Id, user.UserName, user.DisplayName });
+            await signIn.SignOutAsync();
+            return Results.NoContent();
         });
+
+        app.MapGet("/api/me", (HttpContext context) =>
+        {
+            var principal = context.User;
+            if (!Guid.TryParse(principal.FindFirstValue(ClaimTypes.NameIdentifier), out var userId))
+                return Results.Unauthorized();
+
+            var userName = principal.Identity?.Name ?? "";
+            var role = principal.FindFirstValue(ClaimTypes.Role) ?? "";
+            return Results.Ok(new MeResponse(userId, userName, role));
+        }).RequireAuthorization();
+
+
         // Приклад лише mechanics: не повертає identity і не реалізує оцінювану operation.
         app.MapGet("/api/auth/session-check", () => Results.NoContent()).RequireAuthorization();
     }
@@ -115,3 +127,7 @@ public sealed record LoginInput(string? UserName, string? Password);
 // Лише безпечні поля: без пароля, хешу, ролі чи службових даних.
 public sealed record RegistrationResponse(Guid Id, string UserName, string DisplayName);
 // ===== ЛР 3, етап 2: response DTO для register — КІНЕЦЬ =====
+
+
+// Лише дозволені поля профілю з principal: без пароля, хешу, email чи cookie.
+public sealed record MeResponse(Guid Id, string UserName, string Role);
