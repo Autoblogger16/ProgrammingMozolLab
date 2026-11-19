@@ -96,6 +96,7 @@ app.MapGet("/health", async (SecureLabDbContext dbContext, CancellationToken can
 
 app.MapIncidentEndpoints();
 app.MapLab03Identity();
+app.MapLab04Endpoints();
 app.MapLab02Endpoints();
 app.MapFallbackToFile("index.html");
 
