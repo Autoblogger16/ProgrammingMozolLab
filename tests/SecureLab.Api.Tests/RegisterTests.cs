@@ -1,9 +1,10 @@
-﻿using System.Net;
-using System.Net.Http.Json;
-using System.Text.Json;
-using Microsoft.AspNetCore.Identity;
+﻿using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
 using SecureLab.Api.Data.Entities;
+using System.Net;
+using System.Net.Http.Json;
+using System.Text.Json;
+using System.Xml.Linq;
 
 namespace SecureLab.Api.Tests;
 
@@ -53,6 +54,23 @@ public sealed class RegisterTests(SecureLabApiFactory factory) : IClassFixture<S
         {
             await DeleteUsersAsync(name);
         }
+    }
+
+    [Fact]
+    public async Task Register_WhitespaceUserName_Returns400AndCreatesNoUser()
+    {
+        var email = $"blank{Guid.NewGuid():N}example.test";
+        var password = Environment.GetEnvironmentVariable("SeedUsers__Password")
+            ?? throw new InvalidOperationException("Set Local SeedUsers__Password outside Git.");
+
+        using var response = await _client.PostAsJsonAsync("/api/auth/register",
+            new { userName = " ", email, displayName = "Study", password });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        Assert.Null(await users.FindByEmailAsync(email));
+
     }
 
     [Fact]

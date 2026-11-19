@@ -104,7 +104,6 @@ public static class Lab03Identity
         }).RequireRateLimiting("login");
 
 
-        // ===== тесла модел 3: ПОЧАТОК зміни 5 =====
         // Logout з подією: id береться з principal до виходу; інших даних у подію не потрапляє.
         app.MapPost("/api/auth/logout", async (SignInManager<ApplicationUser> signIn,
             HttpContext httpContext, ILogger<Program> logger) =>
@@ -115,7 +114,6 @@ public static class Lab03Identity
                 "logout", userId, "success", httpContext.TraceIdentifier);
             return Results.NoContent();
         });
-        // ===== тесла модел 3: КІНЕЦЬ зміни 5 =====
 
         app.MapGet("/api/me", (HttpContext context) =>
         {
