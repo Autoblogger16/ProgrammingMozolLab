@@ -76,10 +76,25 @@ if (resetRequested)
 app.UseExceptionHandler();
 app.UseStatusCodePages();
 
+// ЛР 5: CSP за зразком методички; усі ресурси клієнта лише з власного origin.
+var csp = "default-src 'self'; frame-ancestors 'none'";
+
 app.Use(async (context, next) =>
 {
     context.Response.Headers.XContentTypeOptions = "nosniff";
     context.Response.Headers.Append("Referrer-Policy", "no-referrer");
+
+    // Development-довідник /scalar має власні ресурси стороннього пакета,
+    // тому CSP основного клієнта до нього не застосовується.
+    var isDevelopmentApiReference =
+        app.Environment.IsDevelopment()
+        && context.Request.Path.StartsWithSegments("/scalar");
+
+    if (!isDevelopmentApiReference)
+    {
+        context.Response.Headers["Content-Security-Policy"] = csp;
+    }
+
     await next(context);
 });
 
