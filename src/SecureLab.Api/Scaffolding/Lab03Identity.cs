@@ -1,3 +1,4 @@
+using SecureLab.Api.Security;
 using System.Security.Claims; 
 using Microsoft.AspNetCore.Identity;
 using SecureLab.Api.Data;
@@ -113,7 +114,7 @@ public static class Lab03Identity
             logger.LogInformation("Auth event {EventType}: user {UserId}, result {Result}, trace {TraceId}",
                 "logout", userId, "success", httpContext.TraceIdentifier);
             return Results.NoContent();
-        });
+        }).AddEndpointFilter<AntiforgeryFilter>();
 
         app.MapGet("/api/me", (HttpContext context) =>
         {

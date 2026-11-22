@@ -23,6 +23,8 @@ public sealed class IncidentCreationTests(SecureLabApiFactory factory)
 
         // POST тепер вимагає входу: спершу логін як alice, далі той самий cookie-клієнт.
         using var client = await factory.LoginAsync("alice", Password);
+        // ЛР 6: POST тепер вимагає antiforgery-токен; без нього фільтр поверне 400 до валідації.
+        await client.UseAntiforgeryTokenAsync();
 
         var request = new
         {
@@ -51,6 +53,8 @@ public sealed class IncidentCreationTests(SecureLabApiFactory factory)
 
         // Так само входимо як alice перед створенням інцидентів.
         using var client = await factory.LoginAsync("alice", Password);
+        // ЛР 6: легітимне створення — з валідною парою токенів.
+        await client.UseAntiforgeryTokenAsync();
 
 
         var title = $"Regression-{Guid.NewGuid():N}";

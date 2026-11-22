@@ -1,4 +1,4 @@
-﻿using System.Net;
+using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -108,6 +108,8 @@ public sealed class SecurityScenarioTests(SecureLabApiFactory factory) : IClassF
     public async Task A04_CreateWithoutOwner_SetsOwnerFromPrincipal()
     {
         using var client = await factory.LoginAsync("bob", Password);
+        // ЛР 6: легітимна зміна стану — з antiforgery-токеном.
+        await client.UseAntiforgeryTokenAsync();
 
         using var response = await client.PostAsJsonAsync("/api/incidents", new
         {
@@ -134,6 +136,8 @@ public sealed class SecurityScenarioTests(SecureLabApiFactory factory) : IClassF
     public async Task A05_ForeignOwnerInJson_IsIgnored()
     {
         using var client = await factory.LoginAsync("bob", Password);
+        // ЛР 6: легітимна зміна стану — з antiforgery-токеном.
+        await client.UseAntiforgeryTokenAsync();
 
         using var response = await client.PostAsJsonAsync("/api/incidents", new
         {
@@ -163,6 +167,8 @@ public sealed class SecurityScenarioTests(SecureLabApiFactory factory) : IClassF
     public async Task A06_Logout_ThenMeReturns401()
     {
         using var client = await factory.LoginAsync("alice", Password);
+        // ЛР 6: logout тепер вимагає antiforgery-токен.
+        await client.UseAntiforgeryTokenAsync();
 
         using var before = await client.GetAsync("/api/me");
         Assert.Equal(HttpStatusCode.OK, before.StatusCode);

@@ -1,4 +1,5 @@
-﻿using System.Diagnostics;
+using SecureLab.Api.Security;
+using System.Diagnostics;
 using System.Security.Claims;
 using Microsoft.EntityFrameworkCore;
 using SecureLab.Api.Data;
@@ -41,7 +42,7 @@ public static class Lab04Endpoints
             incident.UpdatedAtUtc = DateTimeOffset.UtcNow;
             await db.SaveChangesAsync(ct);
             return Results.NoContent();
-        }).RequireAuthorization();
+        }).RequireAuthorization().AddEndpointFilter<AntiforgeryFilter>();
 
 
         app.MapDelete("/api/incidents/{id:guid}", async (
@@ -65,7 +66,7 @@ public static class Lab04Endpoints
             db.Incidents.Remove(incident);
             await db.SaveChangesAsync(ct);
             return Results.NoContent();
-        }).RequireAuthorization();
+        }).RequireAuthorization().AddEndpointFilter<AntiforgeryFilter>();
 
 
         app.MapPost("/api/incidents/{id:guid}/triage", async (
@@ -104,11 +105,21 @@ public static class Lab04Endpoints
                 Note = "Triage виконано аналітиком.",
                 CreatedAtUtc = now
             });
+            var oldStatus = incident.Status;
             incident.Status = IncidentStatus.Triaged;
             incident.UpdatedAtUtc = now;
             await db.SaveChangesAsync(ct);
+
+            // ЛР 6: audit trail дозволеного привілейованого переходу. Окрім рядка в
+            // incident_status_history, у журнал іде подія incident.status_changed —
+            // лише ідентифікатори, дія, результат, статуси, час і trace; без тіла запиту, cookie й токенів.
+            loggers.CreateLogger("SecureLab.Audit").LogInformation(
+                "Audit {EventType}: user {UserId}, action {Action}, incident {IncidentId}, result {Result}, {OldStatus} -> {NewStatus}, at {OccurredAtUtc}, trace {TraceId}",
+                "incident.status_changed", userId, "incident.triage", incident.Id, "allowed",
+                oldStatus, incident.Status, now, Activity.Current?.Id ?? http.TraceIdentifier);
+
             return Results.NoContent();
-        }).RequireAuthorization();
+        }).RequireAuthorization().AddEndpointFilter<AntiforgeryFilter>();
 
 
         app.MapGet("/api/incident-comments/{id:guid}", async (
