@@ -1,4 +1,5 @@
-﻿using System.Diagnostics;
+﻿using SecureLab.Api.Security;
+using System.Diagnostics;
 using System.Security.Claims;
 using Microsoft.EntityFrameworkCore;
 using SecureLab.Api.Data;
@@ -41,7 +42,7 @@ public static class Lab04Endpoints
             incident.UpdatedAtUtc = DateTimeOffset.UtcNow;
             await db.SaveChangesAsync(ct);
             return Results.NoContent();
-        }).RequireAuthorization();
+        }).RequireAuthorization().AddEndpointFilter<AntiforgeryFilter>();
 
 
         app.MapDelete("/api/incidents/{id:guid}", async (
@@ -65,7 +66,7 @@ public static class Lab04Endpoints
             db.Incidents.Remove(incident);
             await db.SaveChangesAsync(ct);
             return Results.NoContent();
-        }).RequireAuthorization();
+        }).RequireAuthorization().AddEndpointFilter<AntiforgeryFilter>();
 
 
         app.MapPost("/api/incidents/{id:guid}/triage", async (
@@ -108,7 +109,7 @@ public static class Lab04Endpoints
             incident.UpdatedAtUtc = now;
             await db.SaveChangesAsync(ct);
             return Results.NoContent();
-        }).RequireAuthorization();
+        }).RequireAuthorization().AddEndpointFilter<AntiforgeryFilter>();
 
 
         app.MapGet("/api/incident-comments/{id:guid}", async (

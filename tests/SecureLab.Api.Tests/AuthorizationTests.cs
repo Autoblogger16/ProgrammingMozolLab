@@ -1,4 +1,4 @@
-﻿using System.Net;
+using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json.Nodes;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -26,6 +26,9 @@ public sealed class AuthorizationTests(SecureLabApiFactory factory)
         if (!Clients.TryGetValue(userName, out var client))
         {
             client = await factory.LoginAsync(userName, Password);
+            // ЛР 6: ці тести перевіряють авторизацію, а не CSRF, тому кожен клієнт
+            // одразу отримує власний antiforgery-токен і надсилає його в усіх змінах стану.
+            await client.UseAntiforgeryTokenAsync();
             Clients[userName] = client;
         }
         return client;

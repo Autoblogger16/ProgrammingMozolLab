@@ -1,4 +1,4 @@
-﻿// ЛР 03, етап 4: власний браузерний сценарій register -> login -> профіль -> create -> logout.
+// ЛР 03, етап 4: власний браузерний сценарій register -> login -> профіль -> create -> logout.
 // Cookie сеансу браузер надсилає сам; JavaScript її не читає і нічого не зберігає в storage.
 
 // Запити лише на свій origin і з cookie цього ж сайту.
@@ -10,6 +10,16 @@ async function apiFetch(path, options = {}) {
     return fetch(url, { ...options, credentials: "same-origin" });
 }
 
+// ЛР 6: зміни стану, що довіряють cookie сеансу, йдуть через antiforgery helper з header X-CSRF-TOKEN.
+function mutateJson(path, body) {
+    return SecureLabCsrf.mutate(path, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body)
+    });
+}
+
+// Register і login не довіряють наявній cookie сеансу, тому йдуть без токена (таблиця 4, SC-06, SC-07).
 function postJson(path, body) {
     return apiFetch(path, {
         method: "POST",
@@ -94,6 +104,8 @@ document.querySelector("#login").addEventListener("submit", async event => {
     form.elements.password.value = "";
     try {
         const response = await postJson("/api/auth/login", data);
+        // ЛР 6: новий користувач — новий токен; старий з пам'яті прибираємо.
+        if (response.ok) SecureLabCsrf.reset();
         result.textContent = `Login: ${response.status}`;
     } catch {
         result.textContent = "Помилка мережі під час входу.";
@@ -114,7 +126,7 @@ document.querySelector("#incident").addEventListener("submit", async event => {
         occurredAtUtc: new Date(form.elements.occurredAtUtc.value).toISOString()
     };
     try {
-        const response = await postJson("/api/incidents", request);
+        const response = await mutateJson("/api/incidents", request);
         if (response.status === 201) {
             const created = await response.json();
             incidentResult.textContent = `Create: 201. Інцидент «${created.title}» створено (id ${created.id}).`;
@@ -129,7 +141,8 @@ document.querySelector("#incident").addEventListener("submit", async event => {
 // 5. Вихід: очищаємо інтерфейс і перевіряємо, що /api/me тепер дає 401.
 document.querySelector("#logout").addEventListener("click", async () => {
     try {
-        const response = await apiFetch("/api/auth/logout", { method: "POST" });
+        const response = await SecureLabCsrf.mutate("/api/auth/logout", { method: "POST" });
+        if (response.ok) SecureLabCsrf.reset();
         clearProfile();
         incidentResult.textContent = "";
         const meStatus = await refreshProfile();

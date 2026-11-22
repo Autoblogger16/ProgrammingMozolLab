@@ -1,3 +1,4 @@
+using SecureLab.Api.Security;
 using System.Security.Claims; // для читання id користувача з cookie
 using Microsoft.EntityFrameworkCore;
 using SecureLab.Api.Data;
@@ -67,7 +68,7 @@ public static class Lab02Endpoints
                 row.CreatedAtUtc));
 
             return Results.Ok(items);
-        });
+        }).RequireRateLimiting("search"); // ЛР 6: окрема квота пошуку для кожного користувача / IP
 
         // ==========================================
         // СТВОРЕННЯ ІНЦИДЕНТУ: POST /api/incidents
@@ -171,8 +172,9 @@ public static class Lab02Endpoints
                 incident.UpdatedAtUtc);
 
             return Results.Created($"/api/incidents/{incident.Id}", response);
-         
-        }).RequireAuthorization(); // без входу запит отримує 401
+
+        }).RequireAuthorization().AddEndpointFilter<AntiforgeryFilter>();
+
 
     }
 
