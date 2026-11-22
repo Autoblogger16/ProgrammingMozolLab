@@ -12,7 +12,7 @@
 - CORS commit: dd04842 (lab5: add Development-only CORS policy for probe 4173).
 - CSP commit: 2f5af7e (lab5: add enforced CSP, move inline styles to CSS).
 - Тег: v0.5.0 на фінальному перевіреному commit f5f7c07 (lab5: add browser security evidence and source-to-sink map); гілку й тег передано в origin.
-- main: git merge --ff-only неможливий, бо main містить окремий коміт 2f64691 зі встановленням scaffold ЛР 2, якого немає в лінії ЛР 2 → ЛР 5; reset --hard і push --force не виконувалися, перенесення в main узгоджується за правилами курсу (звіт, рис. 79–80).
+- main: git merge --ff-only неможливий, бо main містила окремий коміт 2f64691 зі встановленням scaffold ЛР 2; стан перенесено звичайним merge-комітом 58e1de9 без reset --hard і push --force, вміст main збігається з lab/5-browser-xss (звіт, рис. 79–82).
 - Механізм сеансу (Application → Cookies → http://localhost:5080): .AspNetCore.Identity.Application, Domain localhost, Path /, HttpOnly так, SameSite Lax, Secure ні. Value не записується.
 
 ## Гіпотеза й REG-XSS-01
