@@ -138,3 +138,22 @@ select {
     grid-template-columns: 1fr;
   }
 }
+/* ЛР 5: стилі перенесено з inline-атрибутів index.html, бо CSP 'self' блокує inline-стилі */
+.summary-section {
+    margin-top: 1.5rem;
+    border: 1px solid #e5e7eb;
+    border-radius: 0.5rem;
+    padding: 1rem;
+    background: #f9fafb;
+}
+
+#get-summary-btn {
+    width: 100%;
+    padding: 0.65rem 1rem;
+    margin-bottom: 0;
+}
+
+#summary-result {
+    margin-top: 0.75rem;
+}
+

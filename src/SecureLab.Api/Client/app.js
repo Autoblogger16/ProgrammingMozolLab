@@ -117,17 +117,34 @@ filterForm.addEventListener("submit", (event) => {
 
 loadIncidents();
 
-// Кнопка підсумку статистики за критичністю (відповідає еталону)
-document.getElementById('get-summary-btn')?.addEventListener('click', () => {
-    const container = document.getElementById('summary-result');
+// Кнопка підсумку: дані з API, рендер лише через createElement + textContent
+document.getElementById("get-summary-btn")?.addEventListener("click", async () => {
+    const container = document.getElementById("summary-result");
     if (!container) return;
+    container.replaceChildren();
 
-    container.innerHTML = `
-        <h3 style="font-size: 1rem; font-weight: 700; color: #111827; margin-top: 0.75rem; margin-bottom: 0.5rem; font-family: inherit;">Статистика за критичністю</h3>
-        <ul style="list-style-type: disc; padding-left: 1.25rem; margin: 0; color: #374151; font-size: 0.95rem; font-weight: normal;">
-            <li style="color: #374151; font-weight: normal;">Low: 3</li>
-            <li style="color: #374151; font-weight: normal;">High: 1</li>
-            <li style="color: #374151; font-weight: normal;">Medium: 1</li>
-        </ul>
-    `;
+    try {
+        const data = await apiFetch("/api/incidents/severity-summary");
+        const rows = Array.isArray(data)
+            ? data.map((item) => [item.severity ?? item.Severity, item.count ?? item.Count])
+            : Object.entries(data);
+
+        const heading = document.createElement("h3");
+        heading.style.cssText = "font-size: 1rem; font-weight: 700; color: #111827; margin-top: 0.75rem; margin-bottom: 0.5rem; font-family: inherit;";
+        heading.textContent = "Статистика за критичністю";
+
+        const list = document.createElement("ul");
+        list.style.cssText = "list-style-type: disc; padding-left: 1.25rem; margin: 0; color: #374151; font-size: 0.95rem; font-weight: normal;";
+
+        for (const [severity, count] of rows) {
+            const li = document.createElement("li");
+            li.style.cssText = "color: #374151; font-weight: normal;";
+            li.textContent = `${severity}: ${count}`;
+            list.append(li);
+        }
+
+        container.append(heading, list);
+    } catch (error) {
+        container.textContent = `Помилка: ${error.message}`;
+    }
 });

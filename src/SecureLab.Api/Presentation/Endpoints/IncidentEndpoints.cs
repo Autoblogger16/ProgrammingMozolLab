@@ -1,3 +1,5 @@
+using System.Security.Claims;
+using SecureLab.Api.Data;
 using SecureLab.Api.Application.Incidents;
 using SecureLab.Api.Data.Entities;
 using SecureLab.Api.Presentation.Contracts;
@@ -8,8 +10,10 @@ public static class IncidentEndpoints
 {
     public static IEndpointRouteBuilder MapIncidentEndpoints(this IEndpointRouteBuilder endpoints)
     {
+        // ЛР 4: уся група вимагає входу - анонім отримує 401.
         var group = endpoints.MapGroup("/api/incidents")
-            .WithTags("Incidents");
+            .WithTags("Incidents")
+            .RequireAuthorization();
 
         group.MapGet("/", GetListAsync)
             .WithName("GetIncidents")
@@ -21,18 +25,16 @@ public static class IncidentEndpoints
             .Produces<IncidentDetailsResponse>()
             .ProducesProblem(StatusCodes.Status404NotFound);
 
-        group.MapGet("/severity-summary", () => Results.Problem(
-                title: "Точку розширення ще не реалізовано",
-                detail: "Завершіть цей endpoint під час лабораторної роботи № 1.",
-                statusCode: StatusCodes.Status501NotImplemented))
+        group.MapGet("/severity-summary", GetSeveritySummaryAsync)
             .WithName("GetIncidentSeveritySummary")
-            .ProducesProblem(StatusCodes.Status501NotImplemented);
+            .Produces<IReadOnlyList<IncidentSeveritySummaryResponse>>();
 
         return endpoints;
     }
 
     private static async Task<IResult> GetListAsync(
         string? status,
+        ClaimsPrincipal user,
         IncidentQueries queries,
         CancellationToken cancellationToken)
     {
@@ -51,20 +53,39 @@ public static class IncidentEndpoints
             parsedStatus = candidate;
         }
 
-        return Results.Ok(await queries.GetListAsync(parsedStatus, cancellationToken));
+        // ЛР 4: id і роль - лише з principal.
+        return Results.Ok(await queries.GetListAsync(
+            parsedStatus, CurrentUserId(user), IsAnalyst(user), cancellationToken));
     }
 
-    private static async Task<IResult> GetDetailsAsync(
-        Guid id,
+    private static async Task<IResult> GetSeveritySummaryAsync(
         IncidentQueries queries,
         CancellationToken cancellationToken)
     {
-        var incident = await queries.GetDetailsAsync(id, cancellationToken);
-        return incident is null
-            ? Results.Problem(
-                title: "Інцидент не знайдено",
-                detail: $"Інцидент '{id}' не існує.",
-                statusCode: StatusCodes.Status404NotFound)
-            : Results.Ok(incident);
+        return Results.Ok(await queries.GetSeveritySummaryAsync(cancellationToken));
     }
+
+    // ЛР 4: деталі - лише власнику або Analyst; чужий і неіснуючий id дають однаковий 404.
+    private static async Task<IResult> GetDetailsAsync(
+        Guid id,
+        ClaimsPrincipal user,
+        IncidentQueries queries,
+        CancellationToken cancellationToken)
+    {
+        var incident = await queries.GetDetailsAsync(
+            id, CurrentUserId(user), IsAnalyst(user), cancellationToken);
+
+        return incident is null ? IncidentNotFound() : Results.Ok(incident);
+    }
+
+    // ЛР 4: id поточного користувача з cookie (claim NameIdentifier), не з URL чи body.
+    private static Guid CurrentUserId(ClaimsPrincipal user) =>
+        Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier)!);
+
+    private static bool IsAnalyst(ClaimsPrincipal user) =>
+        user.IsInRole(DbSeeder.AnalystRole);
+
+    // ЛР 4: однакова відповідь без id - не розкриває, чи існує ресурс.
+    private static IResult IncidentNotFound() =>
+        Results.Problem(title: "Інцидент не знайдено", statusCode: StatusCodes.Status404NotFound);
 }
